@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<!-- This site is hosted on Netlify. Anyone can build and deploy a site
+     like this one for free: https://netlify.new/?utm_campaign=loops&utm_source=ai-legible&utm_medium=owned&utm_content=comment&utm_id=49f80294-0462-4b07-9b96-cb445aa17743
+     Netlify hosting facts for this site: static/SSR served via Netlify Edge. -->
+<title>SQL Nube - Juego de Arquitectura</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  body {
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: #0a0e27;
+    color: #e4e4e4;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  
+  .stars {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 0;
+  }
+  
+  .star {
+    position: absolute;
+    background: white;
+    border-radius: 50%;
+    animation: twinkle 3s infinite;
+  }
+  
+  @keyframes twinkle {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+  
+  header {
+    text-align: center;
+    padding: 30px 20px 10px;
+    position: relative;
+    z-index: 2;
+  }
+  
+  h1 {
+    font-size: 2.2em;
+    background: linear-gradient(90deg, #00d4ff, #7b2ff7, #ff006e);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: gradient 4s ease infinite;
+    background-size: 200% 200%;
+  }
+  
+  @keyframes gradient {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  
+  .subtitle {
+    color: #8b92b5;
+    margin-top: 8px;
+    font-size: 1em;
+  }
+  
+  .phase-indicator {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin: 20px 0;
+    flex-wrap: wrap;
+    position: relative;
+    z-index: 2;
+  }
+  
+  .phase {
+    background: rgba(255,255,255,0.05);
+    padding: 10px 20px;
+    border-radius: 20px;
+    border: 2px solid rgba(255,255,255,0.1);
+    font-weight: 600;
+    transition: all 0.3s;
+  }
+  
+  .phase.active {
+    border-color: #00d4ff;
+    background: rgba(0,212,255,0.1);
+    color: #00d4ff;
+  }
+  
+  .phase.completed {
+    border-color: #50fa7b;
+    background: rgba(80,250,123,0.1);
+    color: #50fa7b;
+  }
+  
+  .game-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+    position: relative;
+    z-index: 2;
+  }
+  
+  .panel {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 20px;
+    padding: 25px;
+    backdrop-filter: blur(10px);
+    margin-bottom: 20px;
+  }
+  
+  .panel-title {
+    font-size: 1.3em;
+    color: #00d4ff;
+    margin-bottom: 20px;
+    text-align: center;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+  
+  /* FASE 1: Tres columnas de pistas */
+  .clues-columns {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-bottom: 30px;
+  }
+  
+  @media (max-width: 900px) {
+    .clues-columns { grid-template-columns: 1fr; }
+  }
+  
+  .clue-column {
+    background: rgba(0,0,0,0.2);
+    border-radius: 15px;
+    padding: 15px;
+  }
+  
+  .clue-column-title {
+    text-align: center;
+    font-size: 1.1em;
+    font-weight: 700;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid rgba(255,255,255,0.1);
+  }
+  
+  .clue-column:nth-child(1) .clue-column-title { color: #ff79c6; }
+  .clue-column:nth-child(2) .clue-column-title { color: #50fa7b; }
+  .clue-column:nth-child(3) .clue-column-title { color: #00d4ff; }
+  
+  .clues-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 300px;
+  }
+  
+  .clue {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    padding: 12px 15px;
+    border-radius: 10px;
+    cursor: grab;
+    font-size: 0.9em;
+    color: white;
+    transition: all 0.3s;
+    box-shadow: 0 4px 10px rgba(102,126,234,0.3);
+    user-select: none;
+  }
+  
+  .clue:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(102,126,234,0.5);
+  }
+  
+  .clue:active { cursor: grabbing; }
+  
+  .clue.dragging { opacity: 0.5; }
+  
+  .clue.used {
+    opacity: 0.3;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+  
+  /* FASE 1: Conceptos */
+  .concepts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 20px;
+  }
+  
+  .concept-card {
+    background: rgba(0,0,0,0.3);
+    border: 2px solid rgba(102,126,234,0.3);
+    border-radius: 15px;
+    padding: 20px;
+    transition: all 0.3s;
+  }
+  
+  .concept-card.completed {
+    border-color: #50fa7b;
+    background: rgba(80,250,123,0.05);
+    animation: celebrateCard 1s ease;
+  }
+  
+  @keyframes celebrateCard {
+    0% { transform: scale(1); box-shadow: 0 0 0 rgba(80,250,123,0); }
+    50% { transform: scale(1.05); box-shadow: 0 0 40px rgba(80,250,123,0.8); }
+    100% { transform: scale(1); box-shadow: 0 0 20px rgba(80,250,123,0.4); }
+  }
+  
+  .concept-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  
+  .concept-icon {
+    font-size: 2em;
+  }
+  
+  .concept-name {
+    font-size: 1.2em;
+    font-weight: 700;
+    color: #00d4ff;
+  }
+  
+  .concept-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .field {
+    background: rgba(255,255,255,0.05);
+    border: 2px dashed rgba(255,255,255,0.2);
+    border-radius: 8px;
+    padding: 10px;
+    min-height: 50px;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+  }
+  
+  .field.drag-over {
+    border-color: #00d4ff;
+    background: rgba(0,212,255,0.1);
+  }
+  
+  .field.filled {
+    border-style: solid;
+    border-color: #50fa7b;
+    background: rgba(80,250,123,0.1);
+  }
+  
+  .field-label {
+    color: #8b92b5;
+    font-size: 0.8em;
+    margin-right: 10px;
+    min-width: 80px;
+  }
+  
+  .field-content {
+    flex: 1;
+    color: #e4e4e4;
+    font-size: 0.9em;
+  }
+  
+  /* FASE 2: Ordenamiento */
+  .order-area {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    min-height: 400px;
+  }
+  
+  .order-slot {
+    background: rgba(0,0,0,0.3);
+    border: 2px dashed rgba(0,212,255,0.3);
+    border-radius: 12px;
+    padding: 15px;
+    min-height: 70px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    transition: all 0.3s;
+  }
+  
+  .order-slot.drag-over {
+    border-color: #00d4ff;
+    background: rgba(0,212,255,0.1);
+    transform: scale(1.02);
+  }
+  
+  .order-slot.filled {
+    border-style: solid;
+    border-color: #50fa7b;
+  }
+  
+  .order-slot.wrong {
+    animation: shake 0.5s;
+    border-color: #ff006e;
+    background: rgba(255,0,110,0.1);
+  }
+  
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-10px); }
+    75% { transform: translateX(10px); }
+  }
+  
+  .slot-number {
+    background: linear-gradient(135deg, #00d4ff, #7b2ff7);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 1.2em;
+    flex-shrink: 0;
+  }
+  
+  .order-block {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    padding: 12px 18px;
+    border-radius: 10px;
+    cursor: grab;
+    font-weight: 600;
+    color: white;
+    transition: all 0.3s;
+    box-shadow: 0 4px 10px rgba(102,126,234,0.4);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    user-select: none;
+  }
+  
+  .order-block:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(102,126,234,0.6);
+  }
+  
+  .order-block:active { cursor: grabbing; }
+  
+  .order-block.dragging { opacity: 0.5; }
+  
+  .order-block.placed {
+    cursor: default;
+  }
+  
+  .controls {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin: 20px 0;
+    flex-wrap: wrap;
+    position: relative;
+    z-index: 2;
+  }
+  
+  .btn {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border: none;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 30px;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: 600;
+    transition: all 0.3s;
+    box-shadow: 0 4px 15px rgba(102,126,234,0.4);
+  }
+  
+  .btn:hover {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 6px 20px rgba(102,126,234,0.6);
+  }
+  
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  .btn.reset { background: linear-gradient(135deg, #ff006e, #ff4d6d); }
+  .btn.next { background: linear-gradient(135deg, #50fa7b, #00d4ff); }
+  
+  .message {
+    text-align: center;
+    padding: 12px;
+    margin: 15px 0;
+    border-radius: 10px;
+    font-weight: 600;
+    display: none;
+  }
+  
+  .message.success {
+    background: rgba(80,250,123,0.1);
+    color: #50fa7b;
+    border: 1px solid #50fa7b;
+    display: block;
+  }
+  
+  .message.error {
+    background: rgba(255,0,110,0.1);
+    color: #ff006e;
+    border: 1px solid #ff006e;
+    display: block;
+  }
+  
+  .message.info {
+    background: rgba(0,212,255,0.1);
+    color: #00d4ff;
+    border: 1px solid #00d4ff;
+    display: block;
+  }
+  
+  /* Modal de victoria */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.9);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(5px);
+  }
+  
+  .modal-overlay.active {
+    display: flex;
+    animation: fadeIn 0.5s;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  .modal {
+    background: linear-gradient(135deg, #1a1f3a, #0a0e27);
+    border: 2px solid #00d4ff;
+    border-radius: 20px;
+    padding: 30px;
+    max-width: 800px;
+    width: 90%;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 0 50px rgba(0,212,255,0.5);
+    animation: slideUp 0.5s;
+    position: relative;
+    z-index: 1001;
+  }
+  
+  @keyframes slideUp {
+    from { transform: translateY(50px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  
+  .modal h2 {
+    color: #00d4ff;
+    text-align: center;
+    margin-bottom: 20px;
+    font-size: 2em;
+    animation: pulse 1.5s infinite;
+  }
+  
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+  
+  .summary-card {
+    background: rgba(0,0,0,0.3);
+    border-left: 4px solid #00d4ff;
+    padding: 15px;
+    margin-bottom: 12px;
+    border-radius: 8px;
+  }
+  
+  .summary-card h3 {
+    color: #ff79c6;
+    margin-bottom: 8px;
+    font-size: 1.1em;
+  }
+  
+  .summary-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  
+  .summary-item {
+    background: rgba(123,47,247,0.1);
+    padding: 8px;
+    border-radius: 6px;
+    font-size: 0.9em;
+  }
+  
+  .summary-item strong {
+    color: #00d4ff;
+    display: block;
+    font-size: 0.8em;
+    margin-bottom: 3px;
+  }
+  
+  .close-modal {
+    display: block;
+    margin: 20px auto 0;
+    background: linear-gradient(135deg, #00d4ff, #7b2ff7);
+    border: none;
+    color: white;
+    padding: 12px 30px;
+    border-radius: 30px;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: 600;
+  }
+  
+  /* Confetti canvas */
+  #confettiCanvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 999;
+  }
+  
+  @media (max-width: 768px) {
+    h1 { font-size: 1.5em; }
+    .concepts-grid { grid-template-columns: 1fr; }
+    .summary-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="stars" id="stars"></div>
+
+<header>
+  <h1>🎮 SQL Nube: Arquitectura Interactiva</h1>
+  <p class="subtitle">Fase 1: Identificá cada concepto. Fase 2: Ordenalos según el flujo real.</p>
+</header>
+
+<div class="phase-indicator">
+  <div class="phase active" id="phase1">📋 Fase 1: Identificación</div>
+  <div class="phase" id="phase2">🔢 Fase 2: Ordenamiento</div>
+</div>
+
+<div class="game-container">
+  
+  <!-- FASE 1 -->
+  <div id="phase1Content">
+    <div class="panel">
+      <div class="panel-title">🧩 Banco de Pistas (arrastralas desde la columna correcta)</div>
+      <div class="clues-columns">
+        <div class="clue-column">
+          <div class="clue-column-title">¿Qué es?</div>
+          <div class="clues-list" id="cluesWhat"></div>
+        </div>
+        <div class="clue-column">
+          <div class="clue-column-title">¿Para qué sirve?</div>
+          <div class="clues-list" id="cluesPurpose"></div>
+        </div>
+        <div class="clue-column">
+          <div class="clue-column-title">¿Dónde va?</div>
+          <div class="clues-list" id="cluesLocation"></div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="panel">
+      <div class="panel-title">📦 Conceptos (completá las 3 características de cada uno)</div>
+      <div class="concepts-grid" id="conceptsGrid"></div>
+    </div>
+  </div>
+  
+  <!-- FASE 2 -->
+  <div id="phase2Content" style="display:none;">
+    <div class="panel">
+      <div class="panel-title">🔢 Ordená los conceptos según el flujo arquitectónico real</div>
+      <p style="text-align:center; color:#8b92b5; margin-bottom:20px;">
+        Arrastrá cada concepto al número correcto (1 al 6). Si te equivocas, te avisamos al instante.
+      </p>
+      <div class="order-area" id="orderArea"></div>
+    </div>
+  </div>
+  
+</div>
+
+<div class="message" id="message"></div>
+
+<div class="controls">
+  <button class="btn next" id="nextPhaseBtn" disabled>➡️ Ir a Fase 2</button>
+  <button class="btn reset" id="resetBtn">🔄 Reiniciar</button>
+</div>
+
+<!-- Modal de victoria -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h2>🏆 ¡Arquitectura Dominada!</h2>
+    <p style="text-align:center; color:#50fa7b; font-size:1.2em; margin-bottom:20px;">
+      ¡Completaste las dos fases! Sos un crack. 🚀
+    </p>
+    <div id="summaryContent"></div>
+    <button class="close-modal" id="closeModal">Cerrar</button>
+  </div>
+</div>
+
+<canvas id="confettiCanvas"></canvas>
+
+<script>
+// Estrellas
+const starsContainer = document.getElementById('stars');
+for (let i = 0; i < 80; i++) {
+  const star = document.createElement('div');
+  star.className = 'star';
+  star.style.width = star.style.height = Math.random() * 2 + 1 + 'px';
+  star.style.left = Math.random() * 100 + '%';
+  star.style.top = Math.random() * 100 + '%';
+  star.style.animationDelay = Math.random() * 3 + 's';
+  starsContainer.appendChild(star);
+}
+
+// Audio
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx;
+
+function initAudio() {
+  if (!audioCtx) audioCtx = new AudioCtx();
+}
+
+function playSound(type) {
+  initAudio();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  const now = audioCtx.currentTime;
+  
+  if (type === 'pickup') {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.frequency.value = 600;
+    gain.gain.setValueAtTime(0.1, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+    osc.start(now); osc.stop(now + 0.1);
+  } else if (type === 'correct') {
+    [523, 659, 784].forEach((freq, i) => {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.connect(g); g.connect(audioCtx.destination);
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0.15, now + i * 0.1);
+      g.gain.exponentialRampToValueAtTime(0.01, now + i * 0.1 + 0.3);
+      o.start(now + i * 0.1);
+      o.stop(now + i * 0.1 + 0.3);
+    });
+  } else if (type === 'wrong') {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.frequency.value = 200;
+    osc.type = 'sawtooth';
+    gain.gain.setValueAtTime(0.15, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+    osc.start(now); osc.stop(now + 0.3);
+  } else if (type === 'win') {
+    [523, 659, 784, 1047, 1319, 1568].forEach((freq, i) => {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.connect(g); g.connect(audioCtx.destination);
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0.2, now + i * 0.15);
+      g.gain.exponentialRampToValueAtTime(0.01, now + i * 0.15 + 0.6);
+      o.start(now + i * 0.15);
+      o.stop(now + i * 0.15 + 0.6);
+    });
+  }
+}
+
+// Voz
+const synth = window.speechSynthesis;
+let voiceReady = false;
+let selectedVoice = null;
+
+function loadVoice() {
+  const voices = synth.getVoices();
+  // Buscar voz en español
+  selectedVoice = voices.find(v => v.lang.startsWith('es')) || voices[0];
+  voiceReady = true;
+}
+
+if (synth.onvoiceschanged !== undefined) {
+  synth.onvoiceschanged = loadVoice;
+}
+loadVoice();
+
+function speak(text, rate = 1) {
+  if (!voiceReady) loadVoice();
+  synth.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = 'es-ES';
+  utterance.rate = rate;
+  utterance.pitch = 1.1;
+  if (selectedVoice) utterance.voice = selectedVoice;
+  synth.speak(utterance);
+}
+
+// Elogios variados
+const praises = [
+  '¡Muy bien!',
+  '¡Excelente!',
+  '¡Estupendo!',
+  '¡Genial!',
+  '¡Perfecto!',
+  '¡Brillante!',
+  '¡Increíble!',
+  '¡Fantástico!',
+  '¡Sos un crack!',
+  '¡Impecable!'
+];
+
+let praiseIndex = 0;
+function getRandomPraise() {
+  const praise = praises[praiseIndex % praises.length];
+  praiseIndex++;
+  return praise;
+}
+
+// Vibración
+function vibrate(pattern) {
+  if (navigator.vibrate) {
+    navigator.vibrate(pattern);
+  }
+}
+
+// Datos del juego
+const gameData = [
+  {
+    id: 'env',
+    order: 1,
+    icon: '🔐',
+    name: '.env',
+    what: 'Archivo de texto plano con credenciales',
+    purpose: 'Guardar URL y token de Turso sin subirlos a GitHub',
+    location: 'Raíz del proyecto (mismo nivel que main.py)'
+  },
+  {
+    id: 'loaddotenv',
+    order: 2,
+    icon: '📖',
+    name: 'load_dotenv()',
+    what: 'Función de Python (python-dotenv)',
+    purpose: 'Leer el archivo .env y cargar las variables en el entorno',
+    location: 'Al inicio de main.py, antes de usar las variables'
+  },
+  {
+    id: 'payload',
+    order: 3,
+    icon: '📦',
+    name: 'statements / q / params',
+    what: 'Formato JSON que Turso exige',
+    purpose: 'Estructurar la consulta SQL y sus parámetros',
+    location: 'Dentro del payload en execute_query()'
+  },
+  {
+    id: 'executequery',
+    order: 4,
+    icon: '🌉',
+    name: 'execute_query()',
+    what: 'Función puente creada por nosotros',
+    purpose: 'Enviar SQL a Turso por HTTP POST y recibir JSON',
+    location: 'En main.py, definida antes de los endpoints'
+  },
+  {
+    id: 'requestspost',
+    order: 5,
+    icon: '📡',
+    name: 'requests.post()',
+    what: 'Método de la librería requests de Python',
+    purpose: 'Enviar la consulta HTTP a la API de Turso',
+    location: 'Dentro de execute_query() en main.py'
+  },
+  {
+    id: 'fastapi',
+    order: 6,
+    icon: '⚡',
+    name: 'FastAPI',
+    what: 'Framework web de Python',
+    purpose: 'Crear los endpoints /api/expediente y /api/contacto',
+    location: 'En main.py, define la app y las rutas'
+  }
+];
+
+let currentPhase = 1;
+let completedConcepts = new Set();
+let draggedClue = null;
+let draggedBlock = null;
+let phase2Correct = 0;
+
+// Mezclar array
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Inicializar Fase 1
+function initPhase1() {
+  const cluesWhat = document.getElementById('cluesWhat');
+  const cluesPurpose = document.getElementById('cluesPurpose');
+  const cluesLocation = document.getElementById('cluesLocation');
+  const conceptsGrid = document.getElementById('conceptsGrid');
+  
+  cluesWhat.innerHTML = '';
+  cluesPurpose.innerHTML = '';
+  cluesLocation.innerHTML = '';
+  conceptsGrid.innerHTML = '';
+  completedConcepts.clear();
+  praiseIndex = 0;
+  
+  // Crear pistas para cada columna
+  const whatClues = shuffle(gameData.map(item => ({
+    text: item.what,
+    conceptId: item.id,
+    fieldType: 'what'
+  })));
+  
+  const purposeClues = shuffle(gameData.map(item => ({
+    text: item.purpose,
+    conceptId: item.id,
+    fieldType: 'purpose'
+  })));
+  
+  const locationClues = shuffle(gameData.map(item => ({
+    text: item.location,
+    conceptId: item.id,
+    fieldType: 'location'
+  })));
+  
+  // Función para crear elemento de pista
+  function createClueElement(clue, container) {
+    const clueEl = document.createElement('div');
+    clueEl.className = 'clue';
+    clueEl.draggable = true;
+    clueEl.dataset.conceptId = clue.conceptId;
+    clueEl.dataset.fieldType = clue.fieldType;
+    clueEl.textContent = clue.text;
+    
+    clueEl.addEventListener('dragstart', (e) => {
+      draggedClue = clueEl;
+      clueEl.classList.add('dragging');
+      playSound('pickup');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    
+    clueEl.addEventListener('dragend', () => {
+      clueEl.classList.remove('dragging');
+      draggedClue = null;
+    });
+    
+    container.appendChild(clueEl);
+  }
+  
+  // Llenar las tres columnas
+  whatClues.forEach(clue => createClueElement(clue, cluesWhat));
+  purposeClues.forEach(clue => createClueElement(clue, cluesPurpose));
+  locationClues.forEach(clue => createClueElement(clue, cluesLocation));
+  
+  // Crear tarjetas de conceptos mezcladas
+  const shuffledConcepts = shuffle(gameData);
+  shuffledConcepts.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'concept-card';
+    card.dataset.conceptId = item.id;
+    card.innerHTML = `
+      <div class="concept-header">
+        <span class="concept-icon">${item.icon}</span>
+        <span class="concept-name">${item.name}</span>
+      </div>
+      <div class="concept-fields">
+        <div class="field" data-field="what">
+          <span class="field-label">¿Qué es?</span>
+          <span class="field-content"></span>
+        </div>
+        <div class="field" data-field="purpose">
+          <span class="field-label">¿Para qué sirve?</span>
+          <span class="field-content"></span>
+        </div>
+        <div class="field" data-field="location">
+          <span class="field-label">¿Dónde va?</span>
+          <span class="field-content"></span>
+        </div>
+      </div>
+    `;
+    
+    // Agregar event listeners a los fields
+    card.querySelectorAll('.field').forEach(field => {
+      field.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        if (!field.classList.contains('filled')) {
+          field.classList.add('drag-over');
+        }
+      });
+      
+      field.addEventListener('dragleave', () => {
+        field.classList.remove('drag-over');
+      });
+      
+      field.addEventListener('drop', (e) => {
+        e.preventDefault();
+        field.classList.remove('drag-over');
+        if (field.classList.contains('filled')) return;
+        
+        if (!draggedClue) return;
+        
+        const clueConceptId = draggedClue.dataset.conceptId;
+        const clueFieldType = draggedClue.dataset.fieldType;
+        const cardConceptId = card.dataset.conceptId;
+        const fieldType = field.dataset.field;
+        
+        if (clueConceptId === cardConceptId && clueFieldType === fieldType) {
+          // Correcto
+          field.classList.add('filled');
+          field.querySelector('.field-content').textContent = draggedClue.textContent;
+          draggedClue.classList.add('used');
+          playSound('correct');
+          
+          // Elogio con voz
+          const praise = getRandomPraise();
+          showMessage(`✅ ${praise}`, 'success');
+          speak(`${praise} ${draggedClue.textContent}`, 0.9);
+          vibrate(50);
+          
+          // Verificar si el concepto está completo
+          const filledFields = card.querySelectorAll('.field.filled').length;
+          if (filledFields === 3) {
+            card.classList.add('completed');
+            completedConcepts.add(cardConceptId);
+            
+            // Vibración larga y luces
+            vibrate([100, 50, 100, 50, 200]);
+            
+            // Leer el concepto completo
+            const fullText = `${item.name}. ${item.what}. ${item.purpose}. ${item.location}`;
+            setTimeout(() => {
+              speak(`¡Concepto completado! ${fullText}`, 0.85);
+            }, 500);
+            
+            showMessage(`🎉 ¡${item.name} completado!`, 'success');
+            
+            if (completedConcepts.size === gameData.length) {
+              setTimeout(() => {
+                document.getElementById('nextPhaseBtn').disabled = false;
+                showMessage('🎉 ¡Fase 1 completada! Podés avanzar a la Fase 2.', 'info');
+                speak('¡Fase 1 completada! Excelente trabajo. Ahora pasá a la Fase 2 para ordenar los conceptos.', 0.9);
+              }, 1500);
+            }
+          }
+        } else {
+          // Incorrecto
+          playSound('wrong');
+          vibrate([100, 50, 100]);
+          showMessage('❌ Esa pista no va ahí. Intentá de nuevo.', 'error');
+          speak('Incorrecto. Intentá de nuevo.', 1);
+        }
+      });
+    });
+    
+    conceptsGrid.appendChild(card);
+  });
+}
+
+// Inicializar Fase 2
+function initPhase2() {
+  const orderArea = document.getElementById('orderArea');
+  orderArea.innerHTML = '';
+  phase2Correct = 0;
+  
+  // Crear slots numerados
+  for (let i = 1; i <= 6; i++) {
+    const slot = document.createElement('div');
+    slot.className = 'order-slot';
+    slot.dataset.order = i;
+    slot.innerHTML = `<div class="slot-number">${i}</div>`;
+    
+    slot.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (!slot.classList.contains('filled')) {
+        slot.classList.add('drag-over');
+      }
+    });
+    
+    slot.addEventListener('dragleave', () => {
+      slot.classList.remove('drag-over');
+    });
+    
+    slot.addEventListener('drop', (e) => {
+      e.preventDefault();
+      slot.classList.remove('drag-over');
+      if (slot.classList.contains('filled')) return;
+      
+      if (!draggedBlock) return;
+      
+      const blockId = draggedBlock.dataset.conceptId;
+      const item = gameData.find(g => g.id === blockId);
+      const slotOrder = parseInt(slot.dataset.order);
+      
+      // Verificar si el orden es correcto
+      if (item.order === slotOrder) {
+        // Correcto
+        slot.classList.add('filled');
+        slot.innerHTML = `
+          <div class="slot-number">${i}</div>
+          <div class="order-block placed">
+            <span>${item.icon}</span>
+            <span>${item.name}</span>
+          </div>
+        `;
+        
+        draggedBlock.remove();
+        phase2Correct++;
+        playSound('correct');
+        vibrate(50);
+        
+        const praise = getRandomPraise();
+        showMessage(`✅ ${praise} Posición ${slotOrder} correcta`, 'success');
+        speak(`${praise} ${item.name} va en la posición ${slotOrder}`, 0.9);
+        
+        // Verificar si completó la fase 2
+        if (phase2Correct === 6) {
+          setTimeout(showVictory, 1000);
+        }
+      } else {
+        // Incorrecto - feedback inmediato
+        slot.classList.add('wrong');
+        playSound('wrong');
+        vibrate([100, 50, 100]);
+        showMessage(`❌ ${item.name} no va en la posición ${slotOrder}. Intentá en otro lugar.`, 'error');
+        speak(`${item.name} no va en la posición ${slotOrder}. Pensá en el orden de ejecución.`, 0.95);
+        setTimeout(() => slot.classList.remove('wrong'), 600);
+      }
+    });
+    
+    orderArea.appendChild(slot);
+  }
+  
+  // Crear bloques mezclados
+  const shuffledBlocks = shuffle(gameData);
+  shuffledBlocks.forEach(item => {
+    const block = document.createElement('div');
+    block.className = 'order-block';
+    block.draggable = true;
+    block.dataset.conceptId = item.id;
+    block.innerHTML = `<span>${item.icon}</span><span>${item.name}</span>`;
+    
+    block.addEventListener('dragstart', (e) => {
+      draggedBlock = block;
+      block.classList.add('dragging');
+      playSound('pickup');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    
+    block.addEventListener('dragend', () => {
+      block.classList.remove('dragging');
+      draggedBlock = null;
+    });
+    
+    orderArea.appendChild(block);
+  });
+}
+
+function showMessage(text, type) {
+  const msg = document.getElementById('message');
+  msg.textContent = text;
+  msg.className = 'message ' + type;
+  setTimeout(() => msg.style.display = 'none', 3000);
+  msg.style.display = 'block';
+}
+
+// Confetti
+function launchConfetti() {
+  const canvas = document.getElementById('confettiCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  
+  const particles = [];
+  const colors = ['#00d4ff', '#7b2ff7', '#ff006e', '#50fa7b', '#f1fa8c', '#ff79c6'];
+  
+  for (let i = 0; i < 200; i++) {
+    particles.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height - canvas.height,
+      vx: (Math.random() - 0.5) * 4,
+      vy: Math.random() * 3 + 2,
+      size: Math.random() * 8 + 4,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rotation: Math.random() * 360,
+      rotationSpeed: (Math.random() - 0.5) * 10
+    });
+  }
+  
+  let frame = 0;
+  function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    particles.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.rotation += p.rotationSpeed;
+      
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rotation * Math.PI / 180);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size * 0.6);
+      ctx.restore();
+    });
+    
+    frame++;
+    if (frame < 300) {
+      requestAnimationFrame(animate);
+    } else {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+  
+  animate();
+}
+
+function showVictory() {
+  playSound('win');
+  vibrate([200, 100, 200, 100, 400]);
+  launchConfetti();
+  
+  const summaryContent = document.getElementById('summaryContent');
+  summaryContent.innerHTML = '';
+  
+  const orderedData = [...gameData].sort((a, b) => a.order - b.order);
+  
+  orderedData.forEach((item, idx) => {
+    const card = document.createElement('div');
+    card.className = 'summary-card';
+    card.innerHTML = `
+      <h3>${idx + 1}. ${item.icon} ${item.name}</h3>
+      <div class="summary-row">
+        <div class="summary-item">
+          <strong>¿Qué es?</strong>
+          ${item.what}
+        </div>
+        <div class="summary-item">
+          <strong>¿Para qué sirve?</strong>
+          ${item.purpose}
+        </div>
+        <div class="summary-item">
+          <strong>¿Dónde va?</strong>
+          ${item.location}
+        </div>
+      </div>
+    `;
+    summaryContent.appendChild(card);
+  });
+  
+  document.getElementById('modal').classList.add('active');
+  
+  // Voz de victoria
+  setTimeout(() => {
+    speak('¡Felicitaciones! Completaste las dos fases. Dominás la arquitectura de conexión Python con Turso. Sos un profesional.', 0.9);
+  }, 500);
+}
+
+// Event listeners
+document.getElementById('nextPhaseBtn').addEventListener('click', () => {
+  if (completedConcepts.size === gameData.length) {
+    currentPhase = 2;
+    document.getElementById('phase1').classList.remove('active');
+    document.getElementById('phase1').classList.add('completed');
+    document.getElementById('phase2').classList.add('active');
+    document.getElementById('phase1Content').style.display = 'none';
+    document.getElementById('phase2Content').style.display = 'block';
+    document.getElementById('nextPhaseBtn').style.display = 'none';
+    initPhase2();
+    playSound('correct');
+    vibrate(100);
+    showMessage('🚀 ¡Fase 2 iniciada! Ordená los conceptos.', 'info');
+    speak('Fase 2 iniciada. Ahora tenés que ordenar los conceptos según el flujo de ejecución real. Arrastrá cada bloque al número correcto.', 0.9);
+  }
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  currentPhase = 1;
+  document.getElementById('phase1').classList.add('active');
+  document.getElementById('phase1').classList.remove('completed');
+  document.getElementById('phase2').classList.remove('active');
+  document.getElementById('phase1Content').style.display = 'block';
+  document.getElementById('phase2Content').style.display = 'none';
+  document.getElementById('nextPhaseBtn').style.display = 'inline-block';
+  document.getElementById('nextPhaseBtn').disabled = true;
+  initPhase1();
+  playSound('pickup');
+  vibrate(50);
+  showMessage('🔄 Juego reiniciado.', 'info');
+  speak('Juego reiniciado. Empezamos de nuevo.', 0.9);
+});
+
+document.getElementById('closeModal').addEventListener('click', () => {
+  document.getElementById('modal').classList.remove('active');
+});
+
+// Iniciar
+initPhase1();
+</script>
+
+</body>
+</html>
